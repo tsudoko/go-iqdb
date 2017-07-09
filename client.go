@@ -10,8 +10,8 @@ import (
 	"strings"
 )
 
-type Conn struct {
-	c net.Conn
+type Client struct {
+	conn net.Conn
 }
 
 type Response struct {
@@ -31,27 +31,27 @@ type MultiQueryResult struct {
 	DbID int
 }
 
-func Connect(addr string) (*Conn, error) {
+func NewClient(addr string) (*Client, error) {
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		return nil, errors.New("Dial: " + err.Error())
 	}
 
-	return &Conn{conn}, nil
+	return &Client{conn}, nil
 }
 
-func (conn *Conn) Cmd(cmd string) ([]Response, error) {
+func (c *Client) Cmd(cmd string) ([]Response, error) {
 	buf := make([]byte, 512)
 	var res []byte
 	var r []Response
 
-	_, err := conn.c.Write([]byte(cmd + "\r\n"))
+	_, err := c.conn.Write([]byte(cmd + "\r\n"))
 	if err != nil {
 		return nil, errors.New("Write: " + err.Error())
 	}
 
 	for {
-		n, err := conn.c.Read(buf)
+		n, err := c.conn.Read(buf)
 		if err != nil {
 			return nil, errors.New("Read: " + err.Error())
 		}
@@ -80,10 +80,10 @@ func (conn *Conn) Cmd(cmd string) ([]Response, error) {
 	return r, nil
 }
 
-func (conn *Conn) Query(dbid, flags, numres int, filename string) ([]QueryResult, error) {
+func (c *Client) Query(dbid, flags, numres int, filename string) ([]QueryResult, error) {
 	var results []QueryResult
 
-	responses, err := conn.Cmd(fmt.Sprintf("query %d %d %d %s", dbid, flags, numres, filename))
+	responses, err := c.Cmd(fmt.Sprintf("query %d %d %d %s", dbid, flags, numres, filename))
 	if err != nil {
 		return nil, err
 	}
@@ -122,6 +122,6 @@ func (conn *Conn) Query(dbid, flags, numres int, filename string) ([]QueryResult
 	return results, nil
 }
 
-func (conn *Conn) Close() error {
-	return conn.c.Close()
+func (c *Client) Close() error {
+	return c.conn.Close()
 }
