@@ -3,11 +3,13 @@ package iqdb
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strconv"
 )
+
+const buflen = 4096
 
 type Client struct {
 	conn net.Conn
@@ -40,14 +42,63 @@ func NewClient(addr string) (*Client, error) {
 }
 
 func (c *Client) Cmd(cmd string) ([]Response, error) {
-	buf := make([]byte, 512)
-	var res []byte
-	var r []Response
-
-	_, err := c.conn.Write([]byte(cmd + "\r\n"))
+	err := c.sendCmd(cmd)
 	if err != nil {
-		return nil, fmt.Errorf("iqdb cmd \"%s\": %v", cmd, err)
+		return nil, err
 	}
+
+	return c.recvCmd(cmd)
+}
+
+func (c *Client) CmdData(cmd string, size int64, r io.Reader) ([]Response, error) {
+	err := c.sendCmd(fmt.Sprintf("%s :%d", cmd, size))
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.sendData(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.recvCmd(cmd)
+}
+
+func (c *Client) sendCmd(cmd string) error {
+	_, err := c.conn.Write([]byte(cmd + "\n"))
+	if err != nil {
+		return fmt.Errorf("iqdb cmd \"%s\": %v", cmd, err)
+	}
+
+	return nil
+}
+
+func (c *Client) sendData(r io.Reader) error {
+	buf := make([]byte, buflen)
+
+	for {
+		n, err := r.Read(buf)
+		if err != nil && err != io.EOF {
+			return fmt.Errorf("iqdb payload: %v", err)
+		}
+
+		if _, err := c.conn.Write(buf[:n]); err != nil {
+			return fmt.Errorf("iqdb payload: %v", err)
+		}
+
+		if err == io.EOF {
+			c.conn.Write([]byte("\r\n"))
+			break
+		}
+	}
+
+	return nil
+}
+
+func (c *Client) recvCmd(cmd string) ([]Response, error) {
+	var r []Response
+	var res []byte
+	buf := make([]byte, buflen)
 
 	for {
 		n, err := c.conn.Read(buf)
@@ -80,13 +131,24 @@ func (c *Client) Cmd(cmd string) ([]Response, error) {
 }
 
 func (c *Client) Query(dbid, flags, numres int, filename string) ([]QueryResult, error) {
-	var results []QueryResult
-
 	responses, err := c.Cmd(fmt.Sprintf("query %d %d %d %s", dbid, flags, numres, filename))
 	if err != nil {
 		return nil, err
 	}
 
+	return c.parseQuery(responses)
+}
+
+func (c *Client) QueryData(dbid, flags, numres int, size int64, r io.Reader) ([]QueryResult, error) {
+	responses, err := c.CmdData(fmt.Sprintf("query %d %d %d", dbid, flags, numres), size, r)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.parseQuery(responses)
+}
+
+func (c *Client) parseQuery(responses []Response) (results []QueryResult, err error) {
 	for _, res := range responses {
 		if res.Code != ResQuery {
 			continue
