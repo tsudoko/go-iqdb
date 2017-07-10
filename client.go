@@ -33,7 +33,7 @@ type MultiQueryResult struct {
 func NewClient(addr string) (*Client, error) {
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
-		return nil, errors.New("Dial: " + err.Error())
+		return nil, fmt.Errorf("iqdb connect %s: %v", addr, err)
 	}
 
 	return &Client{conn}, nil
@@ -46,13 +46,13 @@ func (c *Client) Cmd(cmd string) ([]Response, error) {
 
 	_, err := c.conn.Write([]byte(cmd + "\r\n"))
 	if err != nil {
-		return nil, errors.New("Write: " + err.Error())
+		return nil, fmt.Errorf("iqdb cmd \"%s\": %v", cmd, err)
 	}
 
 	for {
 		n, err := c.conn.Read(buf)
 		if err != nil {
-			return nil, errors.New("Read: " + err.Error())
+			return nil, fmt.Errorf("iqdb cmd \"%s\": %v", cmd, err)
 		}
 
 		res = append(res, buf[:n]...)
@@ -68,7 +68,7 @@ func (c *Client) Cmd(cmd string) ([]Response, error) {
 
 		code, err := strconv.Atoi(string(s[:3]))
 		if err != nil {
-			return r, errors.New("response code parsing error: " + err.Error())
+			return r, fmt.Errorf("iqdb cmd \"%s\": %v", cmd, err)
 		}
 
 		if code != 0 {
