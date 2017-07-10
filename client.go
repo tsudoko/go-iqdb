@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 )
 
 type Client struct {
@@ -88,35 +87,17 @@ func (c *Client) Query(dbid, flags, numres int, filename string) ([]QueryResult,
 		return nil, err
 	}
 
-	for _, r := range responses {
-		if r.Code != ResQuery {
+	for _, res := range responses {
+		if res.Code != ResQuery {
 			continue
 		}
 
-		result := QueryResult{}
-		args := strings.Split(r.Content, " ")
-
-		result.ImgID, err = strconv.Atoi(args[0])
-		if err != nil {
+		r := QueryResult{}
+		if _, err = fmt.Sscanf(res.Content, "%x %f %d %d", &r.ImgID, &r.Score, &r.Width, &r.Height); err != nil {
 			return nil, err
 		}
 
-		result.Score, err = strconv.ParseFloat(args[1], 64)
-		if err != nil {
-			return nil, err
-		}
-
-		result.Width, err = strconv.Atoi(args[2])
-		if err != nil {
-			return nil, err
-		}
-
-		result.Height, err = strconv.Atoi(args[3])
-		if err != nil {
-			return nil, err
-		}
-
-		results = append(results, result)
+		results = append(results, r)
 	}
 
 	return results, nil
