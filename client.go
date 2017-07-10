@@ -89,7 +89,7 @@ func (c *Client) Query(dbid, flags, numres int, filename string) ([]QueryResult,
 	}
 
 	for _, r := range responses {
-		if r.Code != 200 {
+		if r.Code != ResQuery {
 			continue
 		}
 
