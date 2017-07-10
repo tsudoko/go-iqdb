@@ -21,7 +21,7 @@ type Response struct {
 }
 
 type QueryResult struct {
-	ImgID  int
+	ImgID  uint64
 	Score  float64
 	Width  int
 	Height int
@@ -156,7 +156,7 @@ func (c *Client) parseQuery(responses []Response) (results []QueryResult, err er
 
 		r := QueryResult{}
 		if _, err = fmt.Sscanf(res.Content, "%x %f %d %d", &r.ImgID, &r.Score, &r.Width, &r.Height); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("iqdb query: %v", err)
 		}
 
 		results = append(results, r)
